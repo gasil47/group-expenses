@@ -35,6 +35,9 @@ follow. They want a free, self-hosted alternative they control.
 - R2: Does a Supabase free project pause after inactivity, and what does a user see when it does?
   → Yes: after 7 days of low DB activity; manual resume only; requests just fail; 2 active free projects/org (source: https://supabase.com/docs/guides/platform/free-project-pausing.md; confidence: medium; zk 20261121-115136)
 
+- R3: Is InstantDB a better free backend than Supabase?
+  → No: cloud is sunsetting, no new signups, shuts down 2027-08-31 (source: https://www.instantdb.com/pricing; confidence: high; zk 20261121-121124)
+
 ## Out of scope
 Receipt photos, multiple payers per expense, other currencies, push notifications, recurring
 expenses, native app-store apps, import from Splitwise.
