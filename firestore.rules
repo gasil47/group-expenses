@@ -1,0 +1,99 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function groupData(gid) {
+      return get(/databases/$(database)/documents/groups/$(gid)).data;
+    }
+
+    function isMember(gid) {
+      return signedIn() && request.auth.uid in groupData(gid).memberIds;
+    }
+
+    // Join: only my own uid is appended, with a token that points at this group.
+    function onlyAddsSelf(gid) {
+      let uid = request.auth.uid;
+      let before = resource.data;
+      let after = request.resource.data;
+      return signedIn()
+        && !(uid in before.memberIds)
+        && after.memberIds == before.memberIds.concat([uid])
+        && after.diff(before).affectedKeys().hasOnly(['memberIds', 'memberNames', 'joinToken'])
+        && after.memberNames.diff(before.memberNames).affectedKeys().hasOnly([uid])
+        && after.memberNames[uid] is string
+        && after.joinToken is string
+        && get(/databases/$(database)/documents/invites/$(after.joinToken)).data.groupId == gid;
+    }
+
+    // Share keys must all be group members (sums are checked client-side only).
+    function validShares(gid) {
+      return request.resource.data.shares is map
+        && request.resource.data.shares.keys().hasOnly(groupData(gid).memberIds);
+    }
+
+    function validExpense(gid, eid) {
+      let d = request.resource.data;
+      let hist = getAfter(/databases/$(database)/documents/groups/$(gid)/history/$(d.historyId));
+      return isMember(gid)
+        && d.updatedBy == request.auth.uid
+        && d.amountFils is int
+        && d.amountFils > 0
+        && validShares(gid)
+        && existsAfter(/databases/$(database)/documents/groups/$(gid)/history/$(d.historyId))
+        && hist.data.changedBy == request.auth.uid
+        && hist.data.expenseId == eid;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    match /groups/{gid} {
+      allow read: if isMember(gid);
+      allow create: if signedIn()
+        && request.resource.data.memberIds == [request.auth.uid]
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if (isMember(gid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name']))
+        || onlyAddsSelf(gid);
+
+      match /expenses/{eid} {
+        allow read: if isMember(gid);
+        allow create, update: if validExpense(gid, eid);
+        allow delete: if false;
+      }
+
+      match /history/{hid} {
+        allow read: if isMember(gid);
+        allow create: if isMember(gid)
+          && request.resource.data.changedBy == request.auth.uid;
+        allow update, delete: if false;
+      }
+
+      match /settlements/{sid} {
+        allow read: if isMember(gid);
+        allow create: if isMember(gid)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.auth.uid in [request.resource.data.fromUser, request.resource.data.toUser]
+          && request.resource.data.fromUser in groupData(gid).memberIds
+          && request.resource.data.toUser in groupData(gid).memberIds
+          && request.resource.data.amountFils is int
+          && request.resource.data.amountFils > 0;
+        allow update: if isMember(gid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted']);
+        allow delete: if false;
+      }
+    }
+
+    match /invites/{token} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && isMember(request.resource.data.groupId);
+    }
+  }
+}
