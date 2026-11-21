@@ -20,7 +20,7 @@ Split shared costs with friends. Free, no ads, no daily limits. All amounts are 
 ## Owner tasks
 - Run the tests (unit tests plus the Firestore rules emulator, needs Java 11+): `npm install`, then `npm test`
 - Deploy changed rules: `npx firebase deploy --only firestore:rules --project prod`
-- The site redeploys on every push to `main` (`.github/workflows/pages.yml`).
+- GitHub Pages serves the `main` branch root, so every push to `main` updates the site.
 - The web config in `js/config.js` is public by design. Never commit service-account keys.
 
 ## One-time Firebase console setup (already done once)
