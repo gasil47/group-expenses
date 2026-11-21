@@ -103,7 +103,7 @@ test('randomToken is long, url-safe and varies', () => {
 });
 
 test('isConfigured', () => {
-  assert.equal(isConfigured(firebaseConfig), false);
+  assert.equal(isConfigured(firebaseConfig), true); // real project config since T-009
   const ok = { apiKey: 'AIza1', authDomain: 'p.firebaseapp.com', projectId: 'p', appId: '1:2:web:3' };
   assert.equal(isConfigured(ok), true);
   assert.equal(isConfigured({ ...ok, apiKey: 'YOUR_API_KEY' }), false);

@@ -41,7 +41,7 @@ export function renderSignIn(root, onError) {
         await signUpEmail(em, pw.value, name.value.trim());
       } else await signInEmail(em, pw.value);
     });
-  } }, nameField, email, pw, submit, toggle, forgot, msg);
+  } }, nameField, email, pw, submit, h('div', { class: 'auth-links' }, toggle, forgot), msg);
   root.replaceChildren(
     h('h1', {}, 'Group expenses'),
     h('p', { class: 'muted' }, 'Split costs with friends. Sign in to continue.'),

@@ -34,3 +34,6 @@ input { width: 100%; border: 1px solid var(--border); background: var(--surface)
 .tabs { display: flex; border-bottom: 1px solid var(--border); margin: 16px 0; }
 .tab { flex: 1; min-height: 48px; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted); font: inherit; cursor: pointer; }
 .tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+.auth-links { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.linklike { background: none; border: 0; padding: 8px 0; color: var(--accent, inherit); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
