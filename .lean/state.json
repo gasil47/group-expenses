@@ -4,6 +4,14 @@
   "recent": [
     {
       "date": "2026-11-21",
+      "id": "T-003",
+      "title": "Friends sign in and join groups by link",
+      "notes": [
+        "20261121-115955"
+      ]
+    },
+    {
+      "date": "2026-11-21",
       "id": "T-002",
       "title": "Database where only group members see their data",
       "notes": [

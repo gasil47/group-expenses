@@ -2,10 +2,11 @@
 id: T-003
 title: Friends sign in and join groups by link
 spec: S-001
-status: todo
+status: done
 depends: [T-002]
 files: [index.html, css/app.css, js/config.js, js/api.js, js/app.js, js/views/signin.js, js/views/home.js, js/views/group.js, manifest.webmanifest, icon.svg]
 tdd: after
+done: 2026-11-21
 ---
 ## Goal
 App shell: mobile-first single page with hash router, sign-in, display name, group list with cross-group total, create group, invite link, join via link. `js/views/group.js` has tabs Expenses / Balances that lazily import `js/views/expenses.js` and `js/views/balances.js` (filled by T-004; missing module shows "coming soon").
