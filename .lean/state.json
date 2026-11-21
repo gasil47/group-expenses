@@ -4,6 +4,15 @@
   "recent": [
     {
       "date": "2026-11-21",
+      "id": "T-004",
+      "title": "Add expenses, see balances, record payments",
+      "notes": [
+        "20261121-120213",
+        "20261121-115552-2"
+      ]
+    },
+    {
+      "date": "2026-11-21",
       "id": "T-003",
       "title": "Friends sign in and join groups by link",
       "notes": [

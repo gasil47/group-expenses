@@ -1,9 +1,10 @@
 # STATE — group-expenses
-Focus: S-001 Group expense sharing for friends, without limits or confusion · 3/5 done · next: T-004 Add expenses, see balances, record payments
+Focus: S-001 Group expense sharing for friends, without limits or confusion · 4/5 done · next: T-005 Put the app online for the group
 Now: —
-Ready: T-004 Add expenses, see balances, record payments · waiting on deps: 1
+Ready: T-005 Put the app online for the group
 Recent:
-  - 2026-11-21 T-003 Friends sign in and join groups by link zk:20261121-115955
+  - 2026-11-21 T-004 Add expenses, see balances, record payments zk:20261121-120213,20261121-115552-2
+  - 2026-11-21 T-003 Friends sign in and join groups by link @150efc8 zk:20261121-115955
   - 2026-11-21 T-002 Database where only group members see their data @ecb6116 zk:20261121-115700,20261121-115700-2,20261121-115552
   - 2026-11-21 T-001 Splits and balances always add up exactly @8a04ace zk:20261121-115552,20261121-115552-2
 

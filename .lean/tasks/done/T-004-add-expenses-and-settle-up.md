@@ -2,10 +2,11 @@
 id: T-004
 title: Add expenses, see balances, record payments
 spec: S-001
-status: todo
+status: done
 depends: [T-001, T-003]
 files: [js/views/expenses.js, js/views/balances.js, js/views/expense-form.js, css/expenses.css]
 tdd: after
+done: 2026-11-21
 ---
 ## Goal
 Core screens: one-screen expense form, expense list with history, balances with simplified payments and per-person breakdown, record payment. No limits, no ads.

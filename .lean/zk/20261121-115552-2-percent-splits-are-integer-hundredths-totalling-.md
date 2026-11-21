@@ -8,4 +8,4 @@ source: T-001
 created: 2026-11-21
 ---
 Why: avoids float drift so every split sums exactly.
-Apply: UI converts 33.33% to 3333 before computeSplit.
+Apply: pass percent values as typed (33.33); computeSplit converts to hundredths internally.
