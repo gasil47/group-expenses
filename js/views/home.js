@@ -27,10 +27,12 @@ export async function renderHome(root, user, onError) {
         h('span', {}, g.name), h('span', { class: netClass(nets[i]) }, netLabel(nets[i])))))) :
       h('p', { class: 'muted' }, 'No groups yet. Create one or open an invite link.'),
     h('div', { class: 'form' }, nameIn,
-      h('button', { class: 'btn primary', onclick: async () => {
+      h('button', { class: 'btn primary', onclick: async (ev) => {
+        const btn = ev.currentTarget;
         const n = nameIn.value.trim();
-        if (!n) return;
-        try { location.hash = `#/group/${await createGroup(n)}`; } catch (e) { onError(e); }
+        if (!n || btn.disabled) return;
+        btn.disabled = true;
+        try { location.hash = `#/group/${await createGroup(n)}`; } catch (e) { btn.disabled = false; onError(e); }
       } }, 'New group')),
   );
 }

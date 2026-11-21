@@ -1,5 +1,5 @@
 import { h } from '../dom.js';
-import { getClient, listExpenses, listShares } from '../api.js';
+import { groupHistory, listExpenses, listShares } from '../api.js';
 import { formatAed } from '../ledger.js';
 import { youLine, describeChange } from '../expense-logic.js';
 import { openExpenseForm } from './expense-form.js';
@@ -31,14 +31,13 @@ export async function render(root, ctx) {
   const histBtn = h('button', { class: 'btn', onclick: async () => {
     if (historyBox.childNodes.length) { historyBox.replaceChildren(); return; }
     try {
-      const c = await getClient();
-      const ids = expenses.map((e) => e.id);
-      // History of deleted expenses is not readable under RLS (expenses_select hides them), so show what is.
-      const { data, error } = ids.length
-        ? await c.from('expense_history').select('*').in('expense_id', ids).order('changed_at', { ascending: false })
-        : { data: [] };
-      if (error) throw new Error(error.message);
-      const titleOf = (id) => (expenses.find((e) => e.id === id) || {}).description || 'Expense';
+      const data = await groupHistory(group.id);
+      const titleOf = (id) => {
+        const cur = expenses.find((e) => e.id === id);
+        if (cur) return cur.description || 'Expense';
+        const en = data.find((x) => x.expense_id === id && x.action === 'delete');
+        return (en && en.old_row && en.old_row.description) || 'Expense';
+      };
       historyBox.replaceChildren(data.length ? h('ul', { class: 'list' }, data.map((en) => {
         const d = describeChange(en, nameOf);
         return h('li', { class: 'card hist' },

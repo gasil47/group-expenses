@@ -98,7 +98,7 @@ export function breakdown(userId, expenses, settlements) {
     let d = e.paidBy === userId ? e.amount : 0;
     for (const s of e.shares) if (s.userId === userId) d -= s.fils;
     if (d !== 0 || e.paidBy === userId || e.shares.some((s) => s.userId === userId)) {
-      out.push({ kind: 'expense', id: e.id, label: e.title || e.id, deltaFils: d });
+      out.push({ kind: 'expense', id: e.id, label: e.title || 'Expense', deltaFils: d });
     }
   }
   for (const s of settlements) {

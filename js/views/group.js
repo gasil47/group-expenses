@@ -4,15 +4,13 @@ import { h } from '../dom.js';
 
 export async function renderJoin(root, token) {
   root.replaceChildren(h('p', { class: 'muted' }, 'Joining group…'));
+  // Clear first so a bad or expired token errors once instead of on every route.
+  localStorage.removeItem('pendingJoin');
   const gid = await joinGroup(token);
-  sessionStorage.removeItem('pendingJoin');
   location.replace(`#/group/${gid}`);
 }
 
-// Tab modules (expenses.js, balances.js) come from T-004; a missing one shows "coming soon".
-async function loadTab(name) {
-  try { return await import(`./${name}.js`); } catch { return null; }
-}
+const TABS = { expenses: () => import('./expenses.js'), balances: () => import('./balances.js') };
 
 export async function renderGroup(root, user, gid, onError) {
   root.replaceChildren(h('p', { class: 'muted' }, 'Loading…'));
@@ -22,15 +20,17 @@ export async function renderGroup(root, user, gid, onError) {
   const toast = h('span', { class: 'muted', role: 'status' });
   const body = h('div', { class: 'tab-body' });
   const tabs = {};
+  let seq = 0;
   const show = async (name) => {
+    const mine = ++seq;
     for (const [k, b] of Object.entries(tabs)) b.setAttribute('aria-selected', String(k === name));
-    body.replaceChildren(h('p', { class: 'muted' }, 'Loading…'));
-    const mod = await loadTab(name);
-    if (!mod || typeof mod.render !== 'function') {
-      body.replaceChildren(h('p', { class: 'muted' }, 'Coming soon.'));
-      return;
-    }
-    try { await mod.render(body, { user, group, members }); } catch (e) { onError(e); }
+    // Each call renders into its own container; a stale one ends up detached and harmless.
+    const stage = h('div', {}, h('p', { class: 'muted' }, 'Loading…'));
+    body.replaceChildren(stage);
+    try {
+      const mod = await TABS[name]();
+      if (mine === seq) await mod.render(stage, { user, group, members });
+    } catch (e) { if (mine === seq) onError(e); }
   };
   for (const [k, label] of [['expenses', 'Expenses'], ['balances', 'Balances']]) {
     tabs[k] = h('button', { class: 'tab', role: 'tab', onclick: () => show(k) }, label);

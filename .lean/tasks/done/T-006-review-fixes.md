@@ -2,10 +2,11 @@
 id: T-006
 title: Fix edit, invite, history and privacy bugs
 spec: S-001
-status: todo
+status: done
 depends: [T-004]
 files: [supabase/migrations/001_init.sql, test/db.test.mjs, js/app.js, js/api.js, js/views/expense-form.js, js/views/expenses.js, js/views/balances.js, js/views/home.js, js/views/group.js, js/ledger.js, js/expense-logic.js, test/expense-logic.test.mjs, test/ledger.test.mjs]
 tdd: strict
+done: 2026-11-21
 ---
 ## Goal
 Fix the 10 findings from code review of 8d26ca9..80e3c3d. Logic and SQL fixes are test-first; UI-only fixes are tdd after.

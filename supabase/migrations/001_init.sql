@@ -70,14 +70,17 @@ $$;
 
 create function public.expense_group(eid uuid) returns uuid
 language sql stable security definer set search_path = public as $$
-  select group_id from public.expenses where id = eid;
+  select group_id from public.expenses
+  where id = eid and exists (select 1 from public.group_members m
+                             where m.group_id = expenses.group_id and m.user_id = auth.uid());
 $$;
 
 create function public.shares_json(eid uuid) returns jsonb
 language sql stable security definer set search_path = public as $$
-  select coalesce(jsonb_agg(jsonb_build_object('user_id', user_id, 'fils', fils)
-                            order by user_id), '[]'::jsonb)
-  from public.expense_shares where expense_id = eid;
+  select coalesce(jsonb_agg(jsonb_build_object('user_id', s.user_id, 'fils', s.fils)
+                            order by s.user_id), '[]'::jsonb)
+  from public.expense_shares s
+  where s.expense_id = eid and public.expense_group(eid) is not null;
 $$;
 
 -- RLS
@@ -222,6 +225,16 @@ begin
   return sid;
 end $$;
 
+-- Full audit history for a group, including soft-deleted expenses.
+create function public.group_history(grp uuid) returns setof public.expense_history
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if auth.uid() is null or not public.is_member(grp) then raise exception 'not a member'; end if;
+  return query select h.* from public.expense_history h
+    join public.expenses e on e.id = h.expense_id
+    where e.group_id = grp order by h.changed_at desc;
+end $$;
+
 -- Privileges
 revoke all on all tables in schema public from anon, authenticated;
 grant select on public.groups, public.group_members, public.expenses,
@@ -232,4 +245,4 @@ revoke execute on all functions in schema public from public, anon;
 grant execute on function public.is_member(uuid), public.create_group(text),
   public.join_group(text), public.save_expense(jsonb, jsonb),
   public.delete_expense(uuid), public.record_payment(uuid, uuid, integer),
-  public.expense_group(uuid), public.shares_json(uuid) to authenticated;
+  public.expense_group(uuid), public.shares_json(uuid), public.group_history(uuid) to authenticated;

@@ -79,3 +79,8 @@ test('settlement reduces debt', () => {
   assert.equal(n.get('a'), 300);
   assert.deepEqual(breakdown('b', ex, st).map((x) => x.kind), ['expense', 'payment']);
 });
+
+test('breakdown label never shows an id', () => {
+  const r = breakdown('a', [{ id: 'uuid-1', amount: 100, paidBy: 'a', shares: [{ userId: 'a', fils: 100 }] }], []);
+  assert.equal(r[0].label, 'Expense');
+});

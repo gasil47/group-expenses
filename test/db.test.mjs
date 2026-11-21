@@ -90,3 +90,25 @@ test('record_payment by member', async () => {
   });
   await as(db, C, () => assert.rejects(db.query('select record_payment($1, $2, 500)', [gid, B]), /not a member/));
 });
+
+test('non-member cannot call shares_json or expense_group', async () => {
+  await as(db, C, async () => {
+    const s = (await db.query('select shares_json($1) as j', [eid])).rows[0].j;
+    assert.deepEqual(s, []);
+    assert.equal((await db.query('select expense_group($1) as g', [eid])).rows[0].g, null);
+  });
+});
+
+test('deleted expense appears in group history with who deleted it', async () => {
+  const e2 = await as(db, A, async () => (await save(exp({ description: 'Gone' }), shares())).rows[0].id);
+  await as(db, B, () => db.query('select delete_expense($1)', [e2]));
+  await as(db, A, async () => {
+    const h = (await db.query('select * from group_history($1)', [gid])).rows;
+    const d = h.find((r) => r.expense_id === e2 && r.action === 'delete');
+    assert.ok(d);
+    assert.equal(d.changed_by, B);
+  });
+  await as(db, C, async () => {
+    await assert.rejects(db.query('select * from group_history($1)', [gid]), /not a member/);
+  });
+});

@@ -43,6 +43,7 @@ export const signInGoogle = () => run((c) => c.auth.signInWithOAuth({
   provider: 'google', options: { redirectTo: location.href.split('#')[0] } }));
 export const signInEmail = (email) => run((c) => c.auth.signInWithOtp({
   email, options: { emailRedirectTo: location.href.split('#')[0] } }));
+// Note: the redirect URL carries no #/join hash (implicit-flow tokens use the hash); pending joins live in localStorage.
 export const signOut = async () => (await getClient()).auth.signOut();
 
 export const getProfile = (uid) => run((c) => c.from('profiles').select('display_name').eq('id', uid).maybeSingle());
@@ -58,6 +59,7 @@ export const listMembers = async (gid) => {
   return ids.map((id) => ({ id, name: names.get(id) || 'Member' }));
 };
 export const listExpenses = (gid) => run((c) => c.from('expenses').select('*').eq('group_id', gid).order('spent_on', { ascending: false }));
+export const groupHistory = (grp) => run((c) => c.rpc('group_history', { grp }));
 export const listShares = (eids) => eids.length
   ? run((c) => c.from('expense_shares').select('*').in('expense_id', eids)) : Promise.resolve([]);
 export const listSettlements = (gid) => run((c) => c.from('settlements').select('*').eq('group_id', gid));
