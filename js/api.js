@@ -1,8 +1,9 @@
 // The only module that touches Firebase. Everything returned is a plain app shape (see routes.js).
 import { firebaseConfig, isConfigured } from './config.js';
+import { toGroup, toExpense, toSettlement, randomToken } from './routes.js';
 import {
-  toGroup, toExpense, toSettlement, historyEntry, expenseDoc, randomToken,
-} from './routes.js';
+  groupPayload, invitePayload, joinPayload, expensePayload, historyPayload, settlementPayload, profilePayload,
+} from './payloads.js';
 
 const V = '13.4.0';
 const BASE = `https://www.gstatic.com/firebasejs/${V}`;
@@ -73,7 +74,7 @@ export async function signUpEmail(email, password, name) {
   pendingSignup = new Promise((r) => { done = r; });
   try {
     const cred = await A.createUserWithEmailAndPassword(auth, email, password);
-    await F.setDoc(F.doc(db, 'users', cred.user.uid), { displayName: name });
+    await F.setDoc(F.doc(db, 'users', cred.user.uid), profilePayload(name));
   } finally { done(); pendingSignup = null; }
 }
 export async function signInEmail(email, password) {
@@ -111,7 +112,7 @@ export async function getProfile(uid) {
 }
 export async function saveProfile(uid, name) {
   const { db, F } = await sdk();
-  await F.setDoc(F.doc(db, 'users', uid), { displayName: name });
+  await F.setDoc(F.doc(db, 'users', uid), profilePayload(name));
 }
 
 // ---- groups ----
@@ -135,8 +136,8 @@ export async function createGroup(name, myName) {
   const ref = F.doc(F.collection(db, 'groups'));
   const token = randomToken(crypto);
   const batch = F.writeBatch(db);
-  batch.set(ref, { name, createdBy: uid, memberIds: [uid], memberNames: { [uid]: myName }, inviteToken: token });
-  batch.set(F.doc(db, 'invites', token), { groupId: ref.id });
+  batch.set(ref, groupPayload(name, uid, myName, token));
+  batch.set(F.doc(db, 'invites', token), invitePayload(ref.id));
   await batch.commit();
   return ref.id;
 }
@@ -145,18 +146,16 @@ export async function joinGroup(token, myName) {
   const { auth, db, F } = await sdk();
   const uid = auth.currentUser.uid;
   const inv = await F.getDoc(F.doc(db, 'invites', token));
-  if (!inv.exists()) throw new Error('This invite link is not valid.');
+  if (!inv.exists()) throw Object.assign(new Error('This invite link is not valid.'), { code: 'invalid-invite' });
   const gid = inv.data().groupId;
   const gref = F.doc(db, 'groups', gid);
   try { // already a member? then reading the group works and there is nothing to join
     const g = await F.getDoc(gref);
     if (g.exists() && (g.data().memberIds || []).includes(uid)) return gid;
-  } catch { /* not a member yet */ }
-  await F.updateDoc(gref, {
-    memberIds: F.arrayUnion(uid),
-    [`memberNames.${uid}`]: myName,
-    joinToken: token,
-  });
+  } catch (e) {
+    if (!e || e.code !== 'permission-denied') throw e; // only "denied" means not a member yet
+  }
+  await F.updateDoc(gref, joinPayload(uid, myName, token, F.arrayUnion));
   return gid;
 }
 
@@ -184,10 +183,8 @@ async function writeExpense(gid, expense, before, action, deleted) {
   const eref = expense.id ? F.doc(db, 'groups', gid, 'expenses', expense.id) : F.doc(F.collection(db, 'groups', gid, 'expenses'));
   const href = F.doc(F.collection(db, 'groups', gid, 'history'));
   const batch = F.writeBatch(db);
-  batch.set(eref, { ...expenseDoc(expense, uid, href.id, deleted), updatedAt: F.serverTimestamp() });
-  const after = deleted ? null : expense;
-  const entry = historyEntry(action, before, after);
-  batch.set(href, { expenseId: eref.id, action: entry.action, changedBy: uid, changedAt: F.serverTimestamp(), before: entry.before, after: entry.after });
+  batch.set(eref, expensePayload(expense, uid, href.id, deleted, F.serverTimestamp()));
+  batch.set(href, historyPayload(eref.id, action, before, deleted ? null : expense, uid, F.serverTimestamp()));
   await batch.commit();
   return eref.id;
 }
@@ -196,9 +193,8 @@ export const deleteExpense = (gid, expense) => writeExpense(gid, expense, expens
 
 export async function recordPayment(gid, fromUser, toUser, amountFils) {
   const { auth, db, F } = await sdk();
-  await F.addDoc(F.collection(db, 'groups', gid, 'settlements'), {
-    fromUser, toUser, amountFils, createdBy: auth.currentUser.uid, createdAt: F.serverTimestamp(), deleted: false,
-  });
+  await F.addDoc(F.collection(db, 'groups', gid, 'settlements'),
+    settlementPayload(fromUser, toUser, amountFils, auth.currentUser.uid, F.serverTimestamp()));
 }
 
 export async function listHistory(gid) {

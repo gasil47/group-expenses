@@ -4,6 +4,15 @@
   "recent": [
     {
       "date": "2026-11-21",
+      "id": "T-010",
+      "title": "Creating and listing groups works; audit trail is tamper-proof",
+      "notes": [
+        "20261121-131257",
+        "20261121-131257-2"
+      ]
+    },
+    {
+      "date": "2026-11-21",
       "id": "T-008",
       "title": "App runs on Firebase with live updates",
       "notes": [

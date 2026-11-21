@@ -2,10 +2,11 @@
 id: T-010
 title: Creating and listing groups works; audit trail is tamper-proof
 spec: S-002
-status: todo
+status: done
 depends: [T-007, T-008]
 files: [firestore.rules, test/rules.spec.mjs, js/api.js, js/views/group.js, js/app.js]
 tdd: strict
+done: 2026-11-21
 ---
 ## Goal
 Fix the 9 code-review findings on e4760d7..c2fae02. Every rules fix gets a failing emulator test first that runs the **exact write or query shape `js/api.js` uses** (same fields, batch, serverTimestamp, query filters), so app and rules can't drift again.

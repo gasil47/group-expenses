@@ -4,9 +4,16 @@ import { h } from '../dom.js';
 
 export async function renderJoin(root, user, token) {
   root.replaceChildren(h('p', { class: 'muted' }, 'Joining group…'));
-  // Clear first so a bad or expired token errors once instead of on every route.
+  // Keep pendingJoin through transient failures (offline, etc.) so a retry still joins;
+  // drop it on success or a definitive answer (bad invite, rules rejected the token).
+  let gid;
+  try {
+    gid = await joinGroup(token, user.name);
+  } catch (e) {
+    if (e && (e.code === 'invalid-invite' || e.code === 'permission-denied')) localStorage.removeItem('pendingJoin');
+    throw e;
+  }
   localStorage.removeItem('pendingJoin');
-  const gid = await joinGroup(token, user.name);
   location.replace(`#/group/${gid}`);
 }
 
