@@ -38,6 +38,9 @@ follow. They want a free, self-hosted alternative they control.
 - R3: Is InstantDB a better free backend than Supabase?
   → No: cloud is sunsetting, no new signups, shuts down 2027-08-31 (source: https://www.instantdb.com/pricing; confidence: high; zk 20261121-121124)
 
+- R4: Is Appwrite Cloud free a better backend than Supabase?
+  → No: viable, but pauses after 7 days without Console activity (traffic may not count), deleted after 90 days paused, invite-link join needs a Function (source: https://appwrite.io/pricing; confidence: medium; zk 20261121-121847)
+
 ## Out of scope
 Receipt photos, multiple payers per expense, other currencies, push notifications, recurring
 expenses, native app-store apps, import from Splitwise.
