@@ -29,37 +29,59 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/invites/$(after.joinToken)).data.groupId == gid;
     }
 
-    // Share keys must all be group members (sums are checked client-side only).
+    function validName(n, max) {
+      return n is string && n.size() >= 1 && n.size() <= max;
+    }
+
+    // Share keys must all be group members and there must be at least one.
+    // (Per-value int/sum checks can't be written in rules; the client enforces sums.)
     function validShares(gid) {
       return request.resource.data.shares is map
+        && request.resource.data.shares.size() > 0
         && request.resource.data.shares.keys().hasOnly(groupData(gid).memberIds);
     }
 
+    function historyPath(gid, hid) {
+      return /databases/$(database)/documents/groups/$(gid)/history/$(hid);
+    }
+
+    // An expense write must come with a brand-new history entry for it in the same batch.
     function validExpense(gid, eid) {
       let d = request.resource.data;
-      let hist = getAfter(/databases/$(database)/documents/groups/$(gid)/history/$(d.historyId));
       return isMember(gid)
         && d.updatedBy == request.auth.uid
+        && d.updatedAt == request.time
         && d.amountFils is int
         && d.amountFils > 0
+        && d.paidBy in groupData(gid).memberIds
+        && d.historyId is string
+        && d.deleted is bool
         && validShares(gid)
-        && existsAfter(/databases/$(database)/documents/groups/$(gid)/history/$(d.historyId))
-        && hist.data.changedBy == request.auth.uid
-        && hist.data.expenseId == eid;
+        && !exists(historyPath(gid, d.historyId))
+        && existsAfter(historyPath(gid, d.historyId))
+        && getAfter(historyPath(gid, d.historyId)).data.changedBy == request.auth.uid
+        && getAfter(historyPath(gid, d.historyId)).data.expenseId == eid
+        && getAfter(historyPath(gid, d.historyId)).data.action in ['create', 'update', 'delete']
+        && d.deleted == (getAfter(historyPath(gid, d.historyId)).data.action == 'delete');
     }
 
     match /users/{uid} {
-      allow read: if signedIn();
-      allow write: if signedIn() && request.auth.uid == uid;
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['displayName'])
+        && validName(request.resource.data.displayName, 60);
     }
 
     match /groups/{gid} {
-      allow read: if isMember(gid);
+      allow get: if isMember(gid);
+      allow list: if signedIn() && request.auth.uid in resource.data.memberIds;
       allow create: if signedIn()
         && request.resource.data.memberIds == [request.auth.uid]
-        && request.resource.data.createdBy == request.auth.uid;
+        && request.resource.data.createdBy == request.auth.uid
+        && validName(request.resource.data.name, 80);
       allow update: if (isMember(gid)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name']))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+          && validName(request.resource.data.name, 80))
         || onlyAddsSelf(gid);
 
       match /expenses/{eid} {
@@ -68,10 +90,13 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Entries exist only as the twin of an expense write that points at them.
       match /history/{hid} {
         allow read: if isMember(gid);
         allow create: if isMember(gid)
-          && request.resource.data.changedBy == request.auth.uid;
+          && request.resource.data.changedBy == request.auth.uid
+          && request.resource.data.changedAt == request.time
+          && getAfter(/databases/$(database)/documents/groups/$(gid)/expenses/$(request.resource.data.expenseId)).data.historyId == hid;
         allow update, delete: if false;
       }
 
@@ -79,21 +104,24 @@ service cloud.firestore {
         allow read: if isMember(gid);
         allow create: if isMember(gid)
           && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdAt == request.time
           && request.auth.uid in [request.resource.data.fromUser, request.resource.data.toUser]
+          && request.resource.data.fromUser != request.resource.data.toUser
           && request.resource.data.fromUser in groupData(gid).memberIds
           && request.resource.data.toUser in groupData(gid).memberIds
           && request.resource.data.amountFils is int
           && request.resource.data.amountFils > 0;
-        allow update: if isMember(gid)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted']);
-        allow delete: if false;
+        allow update, delete: if false;
       }
     }
 
     match /invites/{token} {
       allow get: if signedIn();
       allow list: if false;
-      allow create: if signedIn() && isMember(request.resource.data.groupId);
+      // getAfter so the createGroup batch (group + invite) passes.
+      allow create: if signedIn()
+        && request.resource.data.groupId is string
+        && request.auth.uid in getAfter(/databases/$(database)/documents/groups/$(request.resource.data.groupId)).data.memberIds;
     }
   }
 }
