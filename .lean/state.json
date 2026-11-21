@@ -1,7 +1,16 @@
 {
   "project": "group-expenses",
   "blockers": [],
-  "recent": [],
-  "reviewed": null,
-  "note": "S-001 needs research, next: /lean:research S-001"
+  "recent": [
+    {
+      "date": "2026-11-21",
+      "id": "T-001",
+      "title": "Splits and balances always add up exactly",
+      "notes": [
+        "20261121-115552",
+        "20261121-115552-2"
+      ]
+    }
+  ],
+  "reviewed": null
 }

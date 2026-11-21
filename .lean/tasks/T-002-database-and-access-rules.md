@@ -2,7 +2,7 @@
 id: T-002
 title: Database where only group members see their data
 spec: S-001
-status: todo
+status: doing
 depends: []
 files: [supabase/migrations/001_init.sql, test/db.test.mjs, test/helpers/pg.mjs]
 tdd: strict

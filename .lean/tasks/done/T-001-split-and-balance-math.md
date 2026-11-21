@@ -2,10 +2,11 @@
 id: T-001
 title: Splits and balances always add up exactly
 spec: S-001
-status: todo
+status: done
 depends: []
 files: [js/ledger.js, test/ledger.test.mjs, package.json]
 tdd: strict
+done: 2026-11-21
 ---
 ## Goal
 Pure money logic with no DOM or network, used by the expense and balance screens. All amounts are integer fils (zk 20261121-115045).
