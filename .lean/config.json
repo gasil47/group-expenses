@@ -1,0 +1,33 @@
+{
+  "test": "npm test",
+  "testFast": "",
+  "tddStrict": [
+    "js/ledger.js",
+    "supabase/**"
+  ],
+  "deadline": "",
+  "deadlineLabel": "",
+  "security": {
+    "paths": [
+      "**/*.rules",
+      "**/auth/**",
+      "**/functions/**",
+      "**/firebase.json",
+      "**/.env*",
+      "supabase/**",
+      "js/api.js",
+      ".github/workflows/**"
+    ],
+    "ignore": []
+  },
+  "parallel": {
+    "maxAgents": 3,
+    "setup": "",
+    "portEnv": ""
+  },
+  "ids": {
+    "task": "T",
+    "spec": "S"
+  },
+  "sync": false
+}
