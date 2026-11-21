@@ -4,6 +4,15 @@
   "recent": [
     {
       "date": "2026-11-21",
+      "id": "T-008",
+      "title": "App runs on Firebase with live updates",
+      "notes": [
+        "20261121-130644",
+        "20261121-130644-2"
+      ]
+    },
+    {
+      "date": "2026-11-21",
       "id": "T-007",
       "title": "Only group members can see or change their data",
       "notes": [

@@ -1,71 +1,208 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
-import { isConfigured } from './routes.js';
+// The only module that touches Firebase. Everything returned is a plain app shape (see routes.js).
+import { firebaseConfig, isConfigured } from './config.js';
+import {
+  toGroup, toExpense, toSettlement, historyEntry, expenseDoc, randomToken,
+} from './routes.js';
 
-export class ServerAsleepError extends Error {
-  constructor() { super('Server asleep — ask the owner to resume it'); this.name = 'ServerAsleepError'; }
-}
+const V = '13.4.0';
+const BASE = `https://www.gstatic.com/firebasejs/${V}`;
 
-export const configured = isConfigured(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const configured = isConfigured(firebaseConfig);
 
-let client = null;
-export async function getClient() {
+let fb = null; // { auth, db, A, F }
+async function sdk() {
   if (!configured) throw new Error('not configured');
-  if (!client) {
-    const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm');
-    client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: true, detectSessionInUrl: true },
-    });
+  if (!fb) {
+    const [{ initializeApp }, A, F] = await Promise.all([
+      import(`${BASE}/firebase-app.js`), import(`${BASE}/firebase-auth.js`), import(`${BASE}/firebase-firestore.js`),
+    ]);
+    const app = initializeApp(firebaseConfig);
+    fb = { auth: A.getAuth(app), db: F.getFirestore(app), A, F };
   }
-  return client;
+  return fb;
 }
 
-function isNetworkError(err) {
-  const m = String((err && (err.message || err)) || '');
-  return err instanceof TypeError || /failed to fetch|network|load failed|timeout/i.test(m);
+const ms = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : null);
+const SNAP = { serverTimestamps: 'estimate' };
+const data = (doc) => {
+  const d = doc.data(SNAP);
+  if ('updatedAt' in d) d.updatedAt = ms(d.updatedAt);
+  if ('createdAt' in d) d.createdAt = ms(d.createdAt);
+  return d;
+};
+
+// Wrap a snapshot subscription; returns an unsubscribe usable before the SDK has loaded.
+function watch(subscribe) {
+  let off = null, cancelled = false;
+  subscribe().then((u) => { if (cancelled) u(); else off = u; }).catch(() => {});
+  return () => { cancelled = true; if (off) off(); };
 }
 
-// Run a supabase call; throw ServerAsleepError on network failure, Error on API error.
-async function run(fn) {
-  let res;
-  try { res = await fn(await getClient()); } catch (e) {
-    if (isNetworkError(e)) throw new ServerAsleepError();
+// ---- auth ----
+const toUser = (u) => (u ? { id: u.uid, authName: u.displayName || '', email: u.email || '' } : null);
+let pendingSignup = null; // resolves once a new email account's profile is saved
+
+export function onUser(cb, onErr) {
+  return watch(async () => {
+    const { auth, A } = await sdk();
+    A.getRedirectResult(auth).catch((e) => onErr && onErr(e));
+    return A.onAuthStateChanged(auth, async (u) => {
+      if (pendingSignup) await pendingSignup.catch(() => {});
+      cb(toUser(u));
+    });
+  });
+}
+
+export async function signInGoogle() {
+  const { auth, A } = await sdk();
+  const provider = new A.GoogleAuthProvider();
+  try { await A.signInWithPopup(auth, provider); } catch (e) {
+    const code = e && e.code;
+    if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
+      await A.signInWithRedirect(auth, provider);
+      return;
+    }
+    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return;
     throw e;
   }
-  if (res.error) {
-    if (isNetworkError(res.error) || res.status === 0 || res.status >= 502) throw new ServerAsleepError();
-    throw new Error(res.error.message);
-  }
-  return res.data;
 }
 
-export const getSession = async () => (await (await getClient()).auth.getSession()).data.session;
-export const signInGoogle = () => run((c) => c.auth.signInWithOAuth({
-  provider: 'google', options: { redirectTo: location.href.split('#')[0] } }));
-export const signInEmail = (email) => run((c) => c.auth.signInWithOtp({
-  email, options: { emailRedirectTo: location.href.split('#')[0] } }));
-// Note: the redirect URL carries no #/join hash (implicit-flow tokens use the hash); pending joins live in localStorage.
-export const signOut = async () => (await getClient()).auth.signOut();
+export async function signUpEmail(email, password, name) {
+  const { auth, db, A, F } = await sdk();
+  let done;
+  pendingSignup = new Promise((r) => { done = r; });
+  try {
+    const cred = await A.createUserWithEmailAndPassword(auth, email, password);
+    await F.setDoc(F.doc(db, 'users', cred.user.uid), { displayName: name });
+  } finally { done(); pendingSignup = null; }
+}
+export async function signInEmail(email, password) {
+  const { auth, A } = await sdk();
+  await A.signInWithEmailAndPassword(auth, email, password);
+}
+export async function resetPassword(email) {
+  const { auth, A } = await sdk();
+  await A.sendPasswordResetEmail(auth, email);
+}
+export async function signOut() {
+  const { auth, A } = await sdk();
+  await A.signOut(auth);
+}
 
-export const getProfile = (uid) => run((c) => c.from('profiles').select('display_name').eq('id', uid).maybeSingle());
-export const saveProfile = (uid, name) => run((c) => c.from('profiles').upsert({ id: uid, display_name: name }));
+export function friendlyAuthError(e) {
+  const map = {
+    'auth/invalid-credential': 'Wrong email or password.',
+    'auth/wrong-password': 'Wrong email or password.',
+    'auth/user-not-found': 'Wrong email or password.',
+    'auth/email-already-in-use': 'That email already has an account. Try signing in.',
+    'auth/weak-password': 'Password must be at least 6 characters.',
+    'auth/invalid-email': 'Enter a valid email.',
+    'auth/too-many-requests': 'Too many attempts. Try again later.',
+    'auth/network-request-failed': 'Network problem. Check your connection.',
+  };
+  return new Error((e && map[e.code]) || (e && e.message) || String(e));
+}
 
-export const listGroups = () => run((c) => c.from('groups').select('id,name,invite_token').order('created_at'));
-export const getGroup = (id) => run((c) => c.from('groups').select('id,name,invite_token').eq('id', id).maybeSingle());
-export const listMembers = async (gid) => {
-  const rows = await run((c) => c.from('group_members').select('user_id').eq('group_id', gid));
-  const ids = rows.map((r) => r.user_id);
-  const profs = ids.length ? await run((c) => c.from('profiles').select('id,display_name').in('id', ids)) : [];
-  const names = new Map(profs.map((p) => [p.id, p.display_name]));
-  return ids.map((id) => ({ id, name: names.get(id) || 'Member' }));
-};
-export const listExpenses = (gid) => run((c) => c.from('expenses').select('*').eq('group_id', gid).order('spent_on', { ascending: false }));
-export const groupHistory = (grp) => run((c) => c.rpc('group_history', { grp }));
-export const listShares = (eids) => eids.length
-  ? run((c) => c.from('expense_shares').select('*').in('expense_id', eids)) : Promise.resolve([]);
-export const listSettlements = (gid) => run((c) => c.from('settlements').select('*').eq('group_id', gid));
+// ---- profile ----
+export async function getProfile(uid) {
+  const { db, F } = await sdk();
+  const s = await F.getDoc(F.doc(db, 'users', uid));
+  return s.exists() ? { displayName: s.data().displayName } : null;
+}
+export async function saveProfile(uid, name) {
+  const { db, F } = await sdk();
+  await F.setDoc(F.doc(db, 'users', uid), { displayName: name });
+}
 
-export const createGroup = (name) => run((c) => c.rpc('create_group', { name }));
-export const joinGroup = (token) => run((c) => c.rpc('join_group', { token }));
-export const saveExpense = (expense, shares) => run((c) => c.rpc('save_expense', { expense, shares }));
-export const deleteExpense = (id) => run((c) => c.rpc('delete_expense', { id }));
-export const recordPayment = (grp, to_user, amount) => run((c) => c.rpc('record_payment', { grp, to_user, amount }));
+// ---- groups ----
+export function watchGroups(uid, cb, onErr) {
+  return watch(async () => {
+    const { db, F } = await sdk();
+    const q = F.query(F.collection(db, 'groups'), F.where('memberIds', 'array-contains', uid));
+    return F.onSnapshot(q, (snap) => cb(snap.docs.map((d) => toGroup(d.id, d.data())).sort((a, b) => a.name.localeCompare(b.name))), onErr);
+  });
+}
+export function watchGroup(gid, cb, onErr) {
+  return watch(async () => {
+    const { db, F } = await sdk();
+    return F.onSnapshot(F.doc(db, 'groups', gid), (s) => cb(s.exists() ? toGroup(s.id, s.data()) : null), onErr);
+  });
+}
+
+export async function createGroup(name, myName) {
+  const { auth, db, F } = await sdk();
+  const uid = auth.currentUser.uid;
+  const ref = F.doc(F.collection(db, 'groups'));
+  const token = randomToken(crypto);
+  const batch = F.writeBatch(db);
+  batch.set(ref, { name, createdBy: uid, memberIds: [uid], memberNames: { [uid]: myName }, inviteToken: token });
+  batch.set(F.doc(db, 'invites', token), { groupId: ref.id });
+  await batch.commit();
+  return ref.id;
+}
+
+export async function joinGroup(token, myName) {
+  const { auth, db, F } = await sdk();
+  const uid = auth.currentUser.uid;
+  const inv = await F.getDoc(F.doc(db, 'invites', token));
+  if (!inv.exists()) throw new Error('This invite link is not valid.');
+  const gid = inv.data().groupId;
+  const gref = F.doc(db, 'groups', gid);
+  try { // already a member? then reading the group works and there is nothing to join
+    const g = await F.getDoc(gref);
+    if (g.exists() && (g.data().memberIds || []).includes(uid)) return gid;
+  } catch { /* not a member yet */ }
+  await F.updateDoc(gref, {
+    memberIds: F.arrayUnion(uid),
+    [`memberNames.${uid}`]: myName,
+    joinToken: token,
+  });
+  return gid;
+}
+
+// ---- expenses, settlements, history ----
+export function watchExpenses(gid, cb, onErr) {
+  return watch(async () => {
+    const { db, F } = await sdk();
+    return F.onSnapshot(F.collection(db, 'groups', gid, 'expenses'),
+      (snap) => cb(snap.docs.map((d) => toExpense(d.id, data(d)))), onErr);
+  });
+}
+export function watchSettlements(gid, cb, onErr) {
+  return watch(async () => {
+    const { db, F } = await sdk();
+    return F.onSnapshot(F.collection(db, 'groups', gid, 'settlements'),
+      (snap) => cb(snap.docs.map((d) => toSettlement(d.id, data(d)))), onErr);
+  });
+}
+
+// expense: app expense ({id?, description, amountFils, paidBy, shares:[{userId,fils}], spentOn}).
+// before: the app expense as it was (null for a new one). One atomic batch: expense + history entry.
+async function writeExpense(gid, expense, before, action, deleted) {
+  const { auth, db, F } = await sdk();
+  const uid = auth.currentUser.uid;
+  const eref = expense.id ? F.doc(db, 'groups', gid, 'expenses', expense.id) : F.doc(F.collection(db, 'groups', gid, 'expenses'));
+  const href = F.doc(F.collection(db, 'groups', gid, 'history'));
+  const batch = F.writeBatch(db);
+  batch.set(eref, { ...expenseDoc(expense, uid, href.id, deleted), updatedAt: F.serverTimestamp() });
+  const after = deleted ? null : expense;
+  const entry = historyEntry(action, before, after);
+  batch.set(href, { expenseId: eref.id, action: entry.action, changedBy: uid, changedAt: F.serverTimestamp(), before: entry.before, after: entry.after });
+  await batch.commit();
+  return eref.id;
+}
+export const saveExpense = (gid, expense, before) => writeExpense(gid, expense, before || null, before ? 'update' : 'create', false);
+export const deleteExpense = (gid, expense) => writeExpense(gid, expense, expense, 'delete', true);
+
+export async function recordPayment(gid, fromUser, toUser, amountFils) {
+  const { auth, db, F } = await sdk();
+  await F.addDoc(F.collection(db, 'groups', gid, 'settlements'), {
+    fromUser, toUser, amountFils, createdBy: auth.currentUser.uid, createdAt: F.serverTimestamp(), deleted: false,
+  });
+}
+
+export async function listHistory(gid) {
+  const { db, F } = await sdk();
+  const snap = await F.getDocs(F.query(F.collection(db, 'groups', gid, 'history'), F.orderBy('changedAt', 'desc')));
+  return snap.docs.map((d) => { const x = d.data(SNAP); return { id: d.id, ...x, changedAt: ms(x.changedAt) }; });
+}

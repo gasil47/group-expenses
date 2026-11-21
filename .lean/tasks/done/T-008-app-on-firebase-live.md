@@ -2,10 +2,11 @@
 id: T-008
 title: App runs on Firebase with live updates
 spec: S-002
-status: doing
+status: done
 depends: []
 files: [js/api.js, js/config.js, js/app.js, js/routes.js, js/views/signin.js, js/views/home.js, js/views/group.js, js/views/expenses.js, js/views/balances.js, js/views/expense-form.js, js/expense-logic.js, test/routes.test.mjs, test/expense-logic.test.mjs, index.html]
 tdd: after
+done: 2026-11-21
 ---
 ## Goal
 Swap the data layer from supabase-js to the Firebase modular SDK using the S-002 D3 data model, keeping the screens' behaviour. Add live listeners. Keep api.js the only module that touches Firebase.

@@ -69,11 +69,12 @@ test('garbage numbers are rejected', () => {
 test('buildPayload shapes the save_expense args', () => {
   const rows = newRows(members);
   const ev = evaluateForm({ amountText: '9', mode: 'equal', rows });
-  const p = buildPayload({ description: ' Lunch ', paidBy: 'a' }, 'g1', 'e1', ev, '2026-01-02');
-  assert.deepEqual(p.expense, { group_id: 'g1', description: 'Lunch', amount_fils: 900, paid_by: 'a', id: 'e1', spent_on: '2026-01-02' });
-  assert.equal(p.shares.length, 3);
-  assert.equal(p.shares[0].user_id, 'a');
-  assert.equal('id' in buildPayload({ description: '', paidBy: 'a' }, 'g1', null, ev).expense, false);
+  const p = buildPayload({ description: ' Lunch ', paidBy: 'a' }, 'e1', ev, '2026-01-02');
+  assert.deepEqual(p, { description: 'Lunch', amountFils: 900, paidBy: 'a', spentOn: '2026-01-02', id: 'e1',
+    shares: [{ userId: 'a', fils: 300 }, { userId: 'b', fils: 300 }, { userId: 'c', fils: 300 }] });
+  const fresh = buildPayload({ description: '', paidBy: 'a' }, null, ev);
+  assert.equal('id' in fresh, false);
+  assert.match(fresh.spentOn, /^\d{4}-\d{2}-\d{2}$/);
 });
 
 test('rowsFromShares prefills edit state', () => {
@@ -83,23 +84,25 @@ test('rowsFromShares prefills edit state', () => {
 });
 
 test('youLine owe / lent / none', () => {
-  const exp = { paid_by: 'a', amount_fils: 3000 };
-  const shares = [{ user_id: 'a', fils: 1000 }, { user_id: 'b', fils: 2000 }];
-  assert.equal(youLine('a', exp, shares).text, 'You lent 20.00 AED');
-  assert.equal(youLine('b', exp, shares).text, 'You owe 20.00 AED');
-  assert.equal(youLine('c', exp, shares).kind, 'none');
+  const exp = { paidBy: 'a', amountFils: 3000, shares: [{ userId: 'a', fils: 1000 }, { userId: 'b', fils: 2000 }] };
+  assert.equal(youLine('a', exp).text, 'You lent 20.00 AED');
+  assert.equal(youLine('b', exp).text, 'You owe 20.00 AED');
+  assert.equal(youLine('c', exp).kind, 'none');
 });
 
 test('describeChange shows amount diff, create and delete', () => {
-  const upd = describeChange({ action: 'update', changed_by: 'b',
-    old_row: { amount_fils: 5000, description: 'x', paid_by: 'a', shares: [] },
-    new_row: { amount_fils: 6000, description: 'x', paid_by: 'a', shares: [] } }, nameOf);
+  const upd = describeChange({ action: 'update', changedBy: 'b',
+    before: { amountFils: 5000, description: 'x', paidBy: 'a', shares: {} },
+    after: { amountFils: 6000, description: 'x', paidBy: 'a', shares: {} } }, nameOf);
   assert.deepEqual(upd, { who: 'Sara', lines: ['Amount 50.00 → 60.00 AED'] });
-  assert.deepEqual(describeChange({ action: 'create', changed_by: 'a' }, nameOf).lines, ['Created']);
-  assert.deepEqual(describeChange({ action: 'delete', changed_by: 'a' }, nameOf).lines, ['Deleted']);
-  const who = describeChange({ action: 'update', changed_by: 'a',
-    old_row: { amount_fils: 1, paid_by: 'a' }, new_row: { amount_fils: 1, paid_by: 'b' } }, nameOf);
+  assert.deepEqual(describeChange({ action: 'create', changedBy: 'a' }, nameOf).lines, ['Created']);
+  assert.deepEqual(describeChange({ action: 'delete', changedBy: 'a' }, nameOf).lines, ['Deleted']);
+  const who = describeChange({ action: 'update', changedBy: 'a',
+    before: { amountFils: 1, paidBy: 'a' }, after: { amountFils: 1, paidBy: 'b' } }, nameOf);
   assert.deepEqual(who.lines, ['Paid by Ali → Sara']);
+  const split = describeChange({ action: 'update', changedBy: 'a',
+    before: { amountFils: 1, paidBy: 'a', shares: { a: 1, b: 0 } }, after: { amountFils: 1, paidBy: 'a', shares: { b: 0, a: 2 } } }, nameOf);
+  assert.deepEqual(split.lines, ['Split changed']);
 });
 
 test('paymentText and netText', () => {
