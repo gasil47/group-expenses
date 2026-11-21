@@ -1,6 +1,6 @@
 import { h } from '../dom.js';
 import { saveExpense, deleteExpense } from '../api.js';
-import { MODES, newRows, rowsFromShares, evaluateForm, buildPayload } from '../expense-logic.js';
+import { MODES, newRows, initialFormFromShares, evaluateForm, buildPayload } from '../expense-logic.js';
 import { formatAed } from '../ledger.js';
 
 const HINT = { equal: '', exact: 'Amount each person owes (AED)', shares: 'Shares per person (e.g. 2, 1, 1)', percent: 'Percent per person (must total 100)' };
@@ -9,12 +9,13 @@ const HINT = { equal: '', exact: 'Amount each person owes (AED)', shares: 'Share
 export function openExpenseForm({ user, group, members, expense, shareRows, onSaved, onError }) {
   const editing = !!expense;
   const shares = (shareRows || []).map((s) => ({ userId: s.user_id, fils: s.fils }));
+  const init = editing ? initialFormFromShares(members, shares, expense.amount_fils) : null;
   const form = {
     amountText: editing ? formatAed(expense.amount_fils).replace(' AED', '') : '',
     description: editing ? expense.description : '',
     paidBy: editing ? expense.paid_by : user.id,
-    mode: 'equal',
-    rows: editing ? rowsFromShares(members, shares) : newRows(members),
+    mode: editing ? init.mode : 'equal',
+    rows: editing ? init.rows : newRows(members),
   };
   const nameOf = (id) => (members.find((m) => m.id === id) || {}).name || 'Member';
 

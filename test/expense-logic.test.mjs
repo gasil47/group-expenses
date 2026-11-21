@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  newRows, rowsFromShares, evaluateForm, buildPayload, youLine, describeChange, paymentText, netText,
+  newRows, rowsFromShares, evaluateForm, buildPayload, youLine, describeChange, paymentText, netText, initialFormFromShares,
 } from '../js/expense-logic.js';
 
 const members = [{ id: 'a', name: 'Ali' }, { id: 'b', name: 'Sara' }, { id: 'c', name: 'Raj' }];
@@ -107,4 +107,22 @@ test('paymentText and netText', () => {
   assert.equal(netText(500).cls, 'pos');
   assert.equal(netText(-500).text, 'owes 5.00 AED');
   assert.equal(netText(0).text, 'is settled up');
+});
+
+test('editing 70/30 then saving unchanged keeps 70/30', () => {
+  const f = initialFormFromShares(members.slice(0, 2), [{ userId: 'a', fils: 700 }, { userId: 'b', fils: 300 }], 1000);
+  assert.equal(f.mode, 'exact');
+  const r = evaluateForm({ amountText: '10.00', mode: f.mode, rows: f.rows });
+  assert.deepEqual(r.shares, [{ userId: 'a', fils: 700 }, { userId: 'b', fils: 300 }]);
+});
+
+test('editing an even split starts in equal mode', () => {
+  const f = initialFormFromShares(members, [{ userId: 'a', fils: 500 }, { userId: 'b', fils: 500 }], 1000);
+  assert.equal(f.mode, 'equal');
+  assert.deepEqual(f.rows.map((r) => r.on), [true, true, false]);
+});
+
+test('even split with remainder fils is still equal', () => {
+  const f = initialFormFromShares(members, [{ userId: 'a', fils: 334 }, { userId: 'b', fils: 333 }, { userId: 'c', fils: 333 }], 1000);
+  assert.equal(f.mode, 'equal');
 });

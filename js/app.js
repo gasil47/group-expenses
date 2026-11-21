@@ -13,19 +13,29 @@ function onError(e) {
   banner.hidden = false;
 }
 
+const JOIN_TTL_MS = 24 * 60 * 60 * 1000;
+function readPendingJoin() {
+  try {
+    const p = JSON.parse(localStorage.getItem('pendingJoin') || 'null');
+    if (p && p.token && Date.now() - p.at < JOIN_TTL_MS) return p.token;
+  } catch { /* fall through and clear */ }
+  localStorage.removeItem('pendingJoin');
+  return null;
+}
+
 async function route() {
   banner.hidden = true;
   try {
     const session = await getSession();
     const r = parseRoute(location.hash);
-    if (r.name === 'join') sessionStorage.setItem('pendingJoin', r.token);
+    if (r.name === 'join') localStorage.setItem('pendingJoin', JSON.stringify({ token: r.token, at: Date.now() }));
     if (!session) return renderSignIn(root, onError);
     const user = session.user;
     const profile = await getProfile(user.id);
     if (!profile || !profile.display_name) {
       return renderNamePrompt(root, user.id, () => route(), onError);
     }
-    const pending = sessionStorage.getItem('pendingJoin');
+    const pending = readPendingJoin();
     if (pending) return await renderJoin(root, pending);
     if (r.name === 'group') return await renderGroup(root, user, r.id, onError);
     return await renderHome(root, user, onError);
@@ -39,7 +49,17 @@ async function start() {
     return;
   }
   const c = await getClient();
-  c.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_IN' || ev === 'SIGNED_OUT') route(); });
+  // The initial route() below covers the session already present; INITIAL_SESSION and
+  // tab-focus SIGNED_IN events for the same user must not re-render.
+  let lastUid;
+  const initial = await getSession();
+  lastUid = initial ? initial.user.id : null;
+  c.auth.onAuthStateChange((ev, session) => {
+    const uid = session ? session.user.id : null;
+    if (uid === lastUid) return;
+    lastUid = uid;
+    route();
+  });
   window.addEventListener('hashchange', route);
   route();
 }

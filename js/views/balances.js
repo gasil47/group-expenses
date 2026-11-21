@@ -31,8 +31,16 @@ export async function render(root, ctx) {
       h('button', { class: 'btn', onclick: () => detail.replaceChildren() }, 'Close')));
   };
 
+  let paying = false;
   const pay = async (to, fils) => {
-    try { await recordPayment(group.id, to, fils); await rerender(); } catch (e) { onError(e); }
+    if (paying) return;
+    paying = true;
+    root.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+    try { await recordPayment(group.id, to, fils); await rerender(); } catch (e) {
+      paying = false;
+      root.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+      onError(e);
+    }
   };
 
   const people = h('ul', { class: 'list' }, members.map((m) => {

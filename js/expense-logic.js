@@ -18,6 +18,19 @@ export function rowsFromShares(members, shares) {
   }));
 }
 
+// Initial form state when editing: 'equal' if saved shares match an equal split of the
+// same people, otherwise 'exact' with the saved amounts so saving unchanged is lossless.
+export function initialFormFromShares(members, shares, totalFils) {
+  const rows = rowsFromShares(members, shares);
+  const eq = computeSplit(totalFils, 'equal', shares.map((s) => ({ userId: s.userId, value: true })));
+  const same = eq.ok && eq.shares.length === shares.length && eq.shares.every((e) => {
+    const s = shares.find((x) => x.userId === e.userId);
+    return s && s.fils === e.fils;
+  });
+  if (same) return { mode: 'equal', rows: rows.map((r) => ({ ...r, text: '' })) };
+  return { mode: 'exact', rows };
+}
+
 function toValue(mode, r) {
   if (mode === 'equal') return r.on;
   const t = String(r.text || '').trim();
