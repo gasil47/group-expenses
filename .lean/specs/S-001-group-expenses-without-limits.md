@@ -1,7 +1,7 @@
 ---
 id: S-001
 title: Group expense sharing for friends, without limits or confusion
-status: agreed
+status: superseded-backend
 tags: [expenses, supabase, github-pages, auth]
 ---
 ## Problem
@@ -65,5 +65,5 @@ expenses, native app-store apps, import from Splitwise.
 - Public repo: code visible; must never commit service-role keys.
 
 ## Cards
-T-001, T-002, T-003, T-004, T-005
+T-001, T-002, T-003, T-004, T-006 (T-005 replaced by T-009 in S-002 after the switch to Firebase)
 (Kept chains: T-002→T-003 split SQL/RLS from UI to stay under ~400 lines each; T-005 is deploy needing user approvals.)
