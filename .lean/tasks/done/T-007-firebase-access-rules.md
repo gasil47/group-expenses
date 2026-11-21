@@ -2,10 +2,11 @@
 id: T-007
 title: Only group members can see or change their data
 spec: S-002
-status: todo
+status: done
 depends: []
 files: [firestore.rules, firebase.json, .firebaserc, test/rules.test.mjs, package.json, package-lock.json, supabase/migrations/001_init.sql, test/db.test.mjs, test/helpers/pg.mjs]
 tdd: strict
+done: 2026-11-21
 ---
 ## Goal
 Write `firestore.rules` for the S-002 D3 data model and prove it with the Firestore emulator. Remove the Supabase backend files and PGlite.

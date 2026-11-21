@@ -2,7 +2,7 @@
 id: T-008
 title: App runs on Firebase with live updates
 spec: S-002
-status: todo
+status: doing
 depends: []
 files: [js/api.js, js/config.js, js/app.js, js/routes.js, js/views/signin.js, js/views/home.js, js/views/group.js, js/views/expenses.js, js/views/balances.js, js/views/expense-form.js, js/expense-logic.js, test/routes.test.mjs, test/expense-logic.test.mjs, index.html]
 tdd: after

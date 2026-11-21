@@ -4,6 +4,14 @@
   "recent": [
     {
       "date": "2026-11-21",
+      "id": "T-007",
+      "title": "Only group members can see or change their data",
+      "notes": [
+        "20261121-130601"
+      ]
+    },
+    {
+      "date": "2026-11-21",
       "id": "T-006",
       "title": "Fix edit, invite, history and privacy bugs",
       "notes": [
