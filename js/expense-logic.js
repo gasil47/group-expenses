@@ -63,41 +63,49 @@ export function evaluateForm(form) {
   return { ok: res.ok, error: res.error || null, total, shares: res.shares, remaining };
 }
 
-// Save payload for save_expense.
-export function buildPayload(form, groupId, expenseId, evalResult, spentOn) {
-  const expense = {
-    group_id: groupId,
-    description: String(form.description || '').trim(),
-    amount_fils: evalResult.total,
-    paid_by: form.paidBy,
-  };
-  if (expenseId) expense.id = expenseId;
-  if (spentOn) expense.spent_on = spentOn;
-  return { expense, shares: evalResult.shares.map((s) => ({ user_id: s.userId, fils: s.fils })) };
+// Local calendar date as YYYY-MM-DD.
+export function todayLocal(d = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-// "You owe 12.00 AED" / "You lent 30.00 AED" / "" when not involved. shareRows are DB rows.
-export function youLine(userId, expenseRow, shareRows) {
-  const mine = (shareRows || []).filter((s) => s.user_id === userId).reduce((a, s) => a + s.fils, 0);
-  if (expenseRow.paid_by === userId) {
-    const lent = expenseRow.amount_fils - mine;
+// Expense object for api.saveExpense (camelCase, shares as [{userId,fils}]).
+export function buildPayload(form, expenseId, evalResult, spentOn) {
+  const expense = {
+    description: String(form.description || '').trim(),
+    amountFils: evalResult.total,
+    paidBy: form.paidBy,
+    spentOn: spentOn || todayLocal(),
+    shares: evalResult.shares.map((s) => ({ userId: s.userId, fils: s.fils })),
+  };
+  if (expenseId) expense.id = expenseId;
+  return expense;
+}
+
+// "You owe 12.00 AED" / "You lent 30.00 AED" / "" when not involved. expense is a mapped expense.
+export function youLine(userId, expense) {
+  const mine = (expense.shares || []).filter((s) => s.userId === userId).reduce((a, s) => a + s.fils, 0);
+  if (expense.paidBy === userId) {
+    const lent = expense.amountFils - mine;
     return lent > 0 ? { kind: 'lent', text: `You lent ${formatAed(lent)}` } : { kind: 'none', text: 'Not involved' };
   }
   return mine > 0 ? { kind: 'owe', text: `You owe ${formatAed(mine)}` } : { kind: 'none', text: 'Not involved' };
 }
 
-// Plain-language list of changes between two history rows (old/new jsonb, snake_case).
+const sharesKey = (m) => JSON.stringify(Object.entries(m || {}).sort(([a], [b]) => (a < b ? -1 : 1)));
+
+// Plain-language list of changes for a history entry {action, changedBy, before, after} (snapshots, shares as map).
 export function describeChange(entry, nameOf) {
-  const who = nameOf(entry.changed_by);
+  const who = nameOf(entry.changedBy);
   if (entry.action === 'create') return { who, lines: ['Created'] };
   if (entry.action === 'delete') return { who, lines: ['Deleted'] };
-  const o = entry.old_row || {}, n = entry.new_row || {};
+  const o = entry.before || {}, n = entry.after || {};
   const lines = [];
-  if (o.amount_fils !== n.amount_fils) lines.push(`Amount ${formatAed(o.amount_fils).replace(' AED', '')} → ${formatAed(n.amount_fils)}`);
+  if (o.amountFils !== n.amountFils) lines.push(`Amount ${formatAed(o.amountFils).replace(' AED', '')} → ${formatAed(n.amountFils)}`);
   if ((o.description || '') !== (n.description || '')) lines.push(`Description "${o.description || ''}" → "${n.description || ''}"`);
-  if (o.paid_by !== n.paid_by) lines.push(`Paid by ${nameOf(o.paid_by)} → ${nameOf(n.paid_by)}`);
-  if (o.spent_on !== n.spent_on) lines.push(`Date ${o.spent_on} → ${n.spent_on}`);
-  if (JSON.stringify(o.shares || []) !== JSON.stringify(n.shares || [])) lines.push('Split changed');
+  if (o.paidBy !== n.paidBy) lines.push(`Paid by ${nameOf(o.paidBy)} → ${nameOf(n.paidBy)}`);
+  if (o.spentOn !== n.spentOn) lines.push(`Date ${o.spentOn} → ${n.spentOn}`);
+  if (sharesKey(o.shares) !== sharesKey(n.shares)) lines.push('Split changed');
   return { who, lines: lines.length ? lines : ['Saved without changes'] };
 }
 

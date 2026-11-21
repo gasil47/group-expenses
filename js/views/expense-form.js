@@ -5,15 +5,14 @@ import { formatAed } from '../ledger.js';
 
 const HINT = { equal: '', exact: 'Amount each person owes (AED)', shares: 'Shares per person (e.g. 2, 1, 1)', percent: 'Percent per person (must total 100)' };
 
-// Opens the add/edit sheet. expense/shareRows are DB rows when editing.
-export function openExpenseForm({ user, group, members, expense, shareRows, onSaved, onError }) {
+// Opens the add/edit sheet. expense is a mapped expense when editing; live listeners refresh the lists.
+export function openExpenseForm({ user, group, members, expense, onError }) {
   const editing = !!expense;
-  const shares = (shareRows || []).map((s) => ({ userId: s.user_id, fils: s.fils }));
-  const init = editing ? initialFormFromShares(members, shares, expense.amount_fils) : null;
+  const init = editing ? initialFormFromShares(members, expense.shares, expense.amountFils) : null;
   const form = {
-    amountText: editing ? formatAed(expense.amount_fils).replace(' AED', '') : '',
+    amountText: editing ? formatAed(expense.amountFils).replace(' AED', '') : '',
     description: editing ? expense.description : '',
-    paidBy: editing ? expense.paid_by : user.id,
+    paidBy: editing ? expense.paidBy : user.id,
     mode: editing ? init.mode : 'equal',
     rows: editing ? init.rows : newRows(members),
   };
@@ -75,16 +74,17 @@ export function openExpenseForm({ user, group, members, expense, shareRows, onSa
     if (!r.ok) return;
     busy(true);
     try {
-      const { expense: ex, shares: sh } = buildPayload(form, group.id, editing ? expense.id : null, r, editing ? expense.spent_on : null);
-      await saveExpense(ex, sh);
+      const ex = buildPayload(form, editing ? expense.id : null, r, editing ? expense.spentOn : null);
+      await saveExpense(group.id, ex, editing ? expense : null);
       close();
-      await onSaved();
     } catch (err) { busy(false); onError(err); }
   });
 
+  let deleting = false;
   const del = editing ? h('button', { type: 'button', class: 'btn danger', onclick: async () => {
-    if (!confirm('Delete this expense? It stays in the history.')) return;
-    try { await deleteExpense(expense.id); close(); await onSaved(); } catch (err) { onError(err); }
+    if (deleting || !confirm('Delete this expense? It stays in the history.')) return;
+    deleting = true;
+    try { await deleteExpense(group.id, expense); close(); } catch (err) { deleting = false; onError(err); }
   } }, 'Delete expense') : null;
 
   sheet.append(

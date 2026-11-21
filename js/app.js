@@ -1,4 +1,4 @@
-import { configured, getClient, getSession, getProfile, ServerAsleepError } from './api.js';
+import { configured, onUser, getProfile } from './api.js';
 import { parseRoute } from './routes.js';
 import { renderSignIn, renderNamePrompt } from './views/signin.js';
 import { renderHome } from './views/home.js';
@@ -9,7 +9,7 @@ const root = document.getElementById('app');
 const banner = document.getElementById('banner');
 
 function onError(e) {
-  banner.textContent = e instanceof ServerAsleepError ? e.message : `Something went wrong: ${e.message || e}`;
+  banner.textContent = `Something went wrong: ${(e && e.message) || e}`;
   banner.hidden = false;
 }
 
@@ -23,44 +23,47 @@ function readPendingJoin() {
   return null;
 }
 
+let authUser;        // undefined until Firebase reports, then a user or null
+let cleanup = null;  // unsubscribes the listeners of the current screen
+let seq = 0;
+
 async function route() {
+  const mine = ++seq;
+  if (cleanup) { cleanup(); cleanup = null; }
   banner.hidden = true;
+  if (authUser === undefined) return;
+  const keep = (fn) => { if (mine === seq) cleanup = fn || null; else if (fn) fn(); };
   try {
-    const session = await getSession();
     const r = parseRoute(location.hash);
     if (r.name === 'join') localStorage.setItem('pendingJoin', JSON.stringify({ token: r.token, at: Date.now() }));
-    if (!session) return renderSignIn(root, onError);
-    const user = session.user;
-    const profile = await getProfile(user.id);
-    if (!profile || !profile.display_name) {
-      return renderNamePrompt(root, user.id, () => route(), onError);
+    if (!authUser) return renderSignIn(root, onError);
+    const profile = await getProfile(authUser.id);
+    if (mine !== seq) return;
+    if (!profile || !profile.displayName) {
+      return renderNamePrompt(root, authUser.id, authUser.authName, () => route(), onError);
     }
+    const user = { id: authUser.id, name: profile.displayName };
     const pending = readPendingJoin();
-    if (pending) return await renderJoin(root, pending);
-    if (r.name === 'group') return await renderGroup(root, user, r.id, onError);
-    return await renderHome(root, user, onError);
-  } catch (e) { onError(e); }
+    if (pending) return await renderJoin(root, user, pending, onError);
+    if (r.name === 'group') keep(await renderGroup(root, user, r.id, onError));
+    else keep(await renderHome(root, user, onError));
+  } catch (e) { if (mine === seq) onError(e); }
 }
 
-async function start() {
+function start() {
   if (!configured) {
     root.replaceChildren(h('h1', {}, 'Not configured yet'),
       h('p', { class: 'muted' }, 'This app has no server connection yet. Ask the owner to finish setup.'));
     return;
   }
-  const c = await getClient();
-  // The initial route() below covers the session already present; INITIAL_SESSION and
-  // tab-focus SIGNED_IN events for the same user must not re-render.
   let lastUid;
-  const initial = await getSession();
-  lastUid = initial ? initial.user.id : null;
-  c.auth.onAuthStateChange((ev, session) => {
-    const uid = session ? session.user.id : null;
-    if (uid === lastUid) return;
+  onUser((u) => {
+    const uid = u ? u.id : null;
+    if (authUser !== undefined && uid === lastUid) return;
     lastUid = uid;
+    authUser = u;
     route();
-  });
+  }, onError);
   window.addEventListener('hashchange', route);
-  route();
 }
-start().catch(onError);
+start();
