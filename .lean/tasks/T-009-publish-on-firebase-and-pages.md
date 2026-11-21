@@ -2,7 +2,7 @@
 id: T-009
 title: Put the app online for the group
 spec: S-002
-status: todo
+status: doing
 depends: [T-007, T-008]
 deploy: true
 files: [.github/workflows/pages.yml, README.md, js/config.js, .firebaserc]

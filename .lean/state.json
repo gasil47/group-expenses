@@ -74,5 +74,9 @@
       ]
     }
   ],
-  "reviewed": null
+  "reviewed": null,
+  "secured": {
+    "sha": "23e93df",
+    "date": "2026-11-21"
+  }
 }

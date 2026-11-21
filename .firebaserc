@@ -1,1 +1,1 @@
-{ "projects": { "default": "demo-group-expenses" } }
+{ "projects": { "default": "demo-group-expenses", "prod": "group-expenses-2106b5" } }
