@@ -2,10 +2,11 @@
 id: T-002
 title: Database where only group members see their data
 spec: S-001
-status: doing
+status: done
 depends: []
 files: [supabase/migrations/001_init.sql, test/db.test.mjs, test/helpers/pg.mjs]
 tdd: strict
+done: 2026-11-21
 ---
 ## Goal
 Postgres schema, RLS, group/invite/expense functions and audit history for Supabase, tested locally with PGlite (in-process Postgres) and a stub `auth` schema. Adds devDependency `@electric-sql/pglite` via `npm i -D` (package.json created by T-001; if run in parallel, the merge just adds devDependencies).
